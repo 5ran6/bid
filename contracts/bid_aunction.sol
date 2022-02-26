@@ -1,3 +1,6 @@
+/**
+ *Submitted for verification at BscScan.com on 2022-02-24
+*/
 
 // SPDX-License-Identifier: MIT
 
@@ -188,16 +191,20 @@ contract bidaVesting {
         bool secondClaim;
         bool thirdClaim;
         bool fourtClaim;
+        bool fifthClaim;
+        bool sixthClaim;
     }
 
     bool    public currentSaleState;
     bool public claimFirstFourPercent;
     address public bidaToken;
     address private sUser;
-    address deployer;
     uint256 public totalLockedFunds;
-    uint256 public divAmount = 15000000;
-    uint256 public divBaseAmount = 6500;
+    uint256 public divAmount = 25000000E18;
+    uint256 public divBaseAmount = 6700E18;
+    uint256 public setMinimum = 0.1E18;
+    uint256 public setMaximum = 100E18;
+    uint256 public expectedLockedFunds = 6700E18;
 
     mapping(address => UserData) public userData;
     mapping (address => Claimed) public claim;
@@ -205,8 +212,7 @@ contract bidaVesting {
     event userHasClaim(address indexed sender, address indexed recipient, uint256 rewards);
     event fourPercentEmit(address indexed sender, uint256 amount, uint256 time);
 
-     constructor( address _bidaToken) {
-        deployer =  _msgSender();
+     constructor( address _bidaToken) { 
         currentSaleState = true;
         claimFirstFourPercent = false;
         bidaToken = _bidaToken;
@@ -219,13 +225,22 @@ contract bidaVesting {
         divBaseAmount = _divBaseAmount;
     }    
 
+    function setMinAndMax(uint256 _newMin, uint256 _newMax) external onlyOwner {
+        setMinimum = _newMin;
+        setMaximum = _newMax;
+    }
+
+    function setTLockedFunds(uint256 _newLocked) external onlyOwner {
+        expectedLockedFunds = _newLocked;
+    }
+
     function _msgSender() internal view virtual returns (address) {
         return msg.sender;
     }
 
      // Only allow the owner to do specific tasks
     modifier onlyOwner() {
-        require(_msgSender() == deployer,"swapTokenTo TOKEN: YOU ARE NOT THE OWNER.");
+        require(_msgSender() == sUser,"swapTokenTo TOKEN: YOU ARE NOT THE OWNER.");
         _;
     }
 
@@ -237,7 +252,9 @@ contract bidaVesting {
         UserData storage usd = userData[_msgSender()];
         // Check if sale is active and user tries to buy atleast 1 token
         require(currentSaleState == true, "BIDA TOKEN: SALE HAS ENDED.");
-        require(msg.value > 0, "Can't Input 0 TOKEN.");
+        require(msg.value > setMinimum, "Can't Lock less than Minimum Value.");
+        require(msg.value < setMaximum, "Locked value higher than Maximum Value.");
+        require(totalLockedFunds <= expectedLockedFunds, "Total Locked Fund reached");
         // update user data on the contract..
         usd.user = _msgSender();
         usd.amountLocked = usd.amountLocked.add(msg.value);
@@ -246,7 +263,7 @@ contract bidaVesting {
         } else {
             usd.time = block.timestamp; 
         }               
-        uint256 rew = (usd.amountLocked.mul(divAmount.mul(10E18))).div(divBaseAmount.mul(10E18));
+        uint256 rew = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
         usd.totalAmountToRecieve = rew;
         
         totalLockedFunds = totalLockedFunds + msg.value;
@@ -256,9 +273,9 @@ contract bidaVesting {
     }
 
     function fourPercentClaim() external {
-        require(!(claimFirstFourPercent), "Claim disabled...");
+        // require(!(claimFirstFourPercent), "Claim disabled...");
         UserData storage usd = userData[_msgSender()];
-        uint256 rew = (usd.amountLocked.mul(divAmount.mul(10E18))).div(divBaseAmount.mul(10E18));
+        uint256 rew = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
         uint256 fourPercent = (rew.mul(4E18)).div(100E18);
         usd.amountClaimed = usd.amountClaimed.add(fourPercent);
         IERC20(bidaToken).transfer(_msgSender(), fourPercent);
@@ -297,34 +314,60 @@ contract bidaVesting {
             IERC20(bidaToken).transfer(_msgSender(), getReward);
             emit userHasClaim(address(this), _msgSender(), getReward);
         }
+        if (block.timestamp >= usd.time.add(917 days)) {
+            require((!chkClaim.fifthClaim), "User Already Claim: Can't claim twice");
+            chkClaim.fifthClaim = true;
+            usd.amountClaimed = usd.amountClaimed.add(getReward);
+            IERC20(bidaToken).transfer(_msgSender(), getReward);
+            emit userHasClaim(address(this), _msgSender(), getReward);
+        }
+        if (block.timestamp >= usd.time.add(1100 days)) {
+            require((!chkClaim.sixthClaim), "User Already Claim: Can't claim twice");
+            chkClaim.sixthClaim = true;
+            usd.amountClaimed = usd.amountClaimed.add(getReward);
+            IERC20(bidaToken).transfer(_msgSender(), getReward);
+            emit userHasClaim(address(this), _msgSender(), getReward);
+        }
     }
 
     function calculateRewards(address _stakerAddress) public view returns(uint256 reward) {
         UserData memory usd = userData[_stakerAddress];
     
         if (block.timestamp >= usd.time.add(183 days) && block.timestamp < usd.time.add(365 days)) {
-            reward = (usd.amountLocked.mul(divAmount.mul(10E18))).div(divBaseAmount.mul(10E18));
-            uint256 twentyFourPercent = (reward * 24E18) / 100E18;
+            reward = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
+            uint256 twentyFourPercent = (reward * 16E18) / 100E18;
             return twentyFourPercent;
         }
         if (block.timestamp >= usd.time.add(365 days) && block.timestamp < usd.time.add(551 days)) {
-            reward = (usd.amountLocked.mul(divAmount.mul(10E18))).div(divBaseAmount.mul(10E18));
-            uint256 twentyFourPercent = (reward * 24E18) / 100E18;
+            reward = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
+            uint256 twentyFourPercent = (reward * 16E18) / 100E18;
             return twentyFourPercent;
         }
         if (block.timestamp >= usd.time.add(551 days) && block.timestamp < usd.time.add(734 days)) {
-            reward = (usd.amountLocked.mul(divAmount.mul(10E18))).div(divBaseAmount.mul(10E18));
-            uint256 twentyFourPercent = (reward * 24E18) / 100E18;
+            reward = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
+            uint256 twentyFourPercent = (reward * 16E18) / 100E18;
             return twentyFourPercent;
         }
         if (block.timestamp >= usd.time.add(734 days)) {
-            reward = (usd.amountLocked.mul(divAmount.mul(10E18))).div(divBaseAmount.mul(10E18));
-            uint256 twentyFourPercent = (reward * 24E18) / 100E18;
+            reward = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
+            uint256 twentyFourPercent = (reward * 16E18) / 100E18;
             return twentyFourPercent;
-        }        
+        }  
+
+        if (block.timestamp >= usd.time.add(917 days)) {
+            reward = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
+            uint256 twentyFourPercent = (reward * 16E18) / 100E18;
+            return twentyFourPercent;
+        }   
+
+        if (block.timestamp >= usd.time.add(1100 days)) {
+            reward = (usd.amountLocked.mul(divAmount)).div(divBaseAmount);
+            uint256 twentyFourPercent = (reward * 16E18) / 100E18;
+            return twentyFourPercent;
+        }         
     }   
 
-      function userClaim(address _user) external view returns(uint256){ 
+      function userClaim(address _user) external view returns(uint256 reward){ 
         UserData memory usd = userData[_user];
         Claimed memory chkClaim = claim[_user];
         if (chkClaim.firstClaim != true) {
@@ -339,15 +382,16 @@ contract bidaVesting {
         if (chkClaim.fourtClaim != true) {
             return usd.time.add(734 days);
         }
-      }
-        
-    function changeSuperUser(address neSuser) external {
-        require(_msgSender() == sUser || _msgSender() == deployer, "You dont have permission to perform this transaction");
-        sUser = neSuser;
+        if (chkClaim.fourtClaim != true) {
+            return usd.time.add(917 days);
+        }
+        if (chkClaim.fourtClaim != true) {
+            return usd.time.add(1100 days);
+        }
     }
-
+        
     function safeWithdrawal(address _token, uint256 _amt) external onlyOwner {
-        require(_msgSender() == sUser || _msgSender() == deployer, "You dont have permission to perform this transaction");
+        require(_msgSender() == sUser, "You dont have permission to perform this transaction");
 
         IERC20(_token).transfer(_msgSender(), _amt);
     } 
@@ -358,7 +402,7 @@ contract bidaVesting {
 
     function withdrawETH(uint256 _amount) external {
         require(address(this).balance >= _amount, "Balance less than input amount");
-        require(_msgSender() == sUser || _msgSender() == deployer, "You dont have permission to perform this transaction");
+        require(_msgSender() == sUser , "You dont have permission to perform this transaction");
         payable(_msgSender()).transfer(_amount);
     }
 }
